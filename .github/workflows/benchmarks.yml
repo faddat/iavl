@@ -1,0 +1,11 @@
+name: Benchmarks
+on: [push, pull_request]
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@latest
+      - name: basic benchmarks
+# This runs only basic benchmarks, and is here so that changes and databases can be compared to each other. 
+        run: make bench
