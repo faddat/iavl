@@ -151,7 +151,6 @@ func GetKey(allkeys [][]byte, loc Where) []byte {
 		return allkeys[len(allkeys)-1]
 	}
 	// select a random index between 1 and allkeys-2
-	// nolint:gosec
 	idx := rand.Int()%(len(allkeys)-2) + 1
 	return allkeys[idx]
 }
@@ -181,7 +180,6 @@ func BuildTree(size int) (itree *ImmutableTree, keys [][]byte, err error) {
 	for i := 0; i < size; i++ {
 		key := make([]byte, 4)
 		// create random 4 byte key
-		// nolint:gosec
 		rand.Read(key)
 		value := "value_for_key:" + string(key)
 		tree.Set(key, []byte(value))
@@ -192,4 +190,38 @@ func BuildTree(size int) (itree *ImmutableTree, keys [][]byte, err error) {
 	})
 
 	return tree.ImmutableTree, keys, nil
+}
+
+// sink is kept as a global to ensure that value checks and assignments to it can't be
+// optimized away, and this will help us ensure that benchmarks successfully run.
+var sink interface{}
+
+func BenchmarkConvertLeafOp(b *testing.B) {
+	var versions = []int64{
+		0,
+		1,
+		100,
+		127,
+		128,
+		1 << 29,
+		-0,
+		-1,
+		-100,
+		-127,
+		-128,
+		-1 << 29,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for _, version := range versions {
+			sink = convertLeafOp(version)
+		}
+	}
+	if sink == nil {
+		b.Fatal("Benchmark wasn't run")
+	}
+	sink = nil
 }

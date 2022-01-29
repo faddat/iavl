@@ -5,12 +5,20 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/pkg/errors"
 
-	cmn "github.com/cosmos/iavl/common"
+	hexbytes "github.com/cosmos/iavl/internal/bytes"
+	"github.com/cosmos/iavl/internal/encoding"
 	iavlproto "github.com/cosmos/iavl/proto"
 )
+
+var bufPool = &sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
 
 var (
 	// ErrInvalidProof is returned by Verify when a proof cannot be validated.
@@ -55,29 +63,32 @@ func (pin ProofInnerNode) stringIndented(indent string) string {
 
 func (pin ProofInnerNode) Hash(childHash []byte) []byte {
 	hasher := sha256.New()
-	buf := new(bytes.Buffer)
 
-	err := encodeVarint(buf, int64(pin.Height))
+	buf := bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufPool.Put(buf)
+
+	err := encoding.EncodeVarint(buf, int64(pin.Height))
 	if err == nil {
-		err = encodeVarint(buf, pin.Size)
+		err = encoding.EncodeVarint(buf, pin.Size)
 	}
 	if err == nil {
-		err = encodeVarint(buf, pin.Version)
+		err = encoding.EncodeVarint(buf, pin.Version)
 	}
 
 	if len(pin.Left) == 0 {
 		if err == nil {
-			err = encodeBytes(buf, childHash)
+			err = encoding.EncodeBytes(buf, childHash)
 		}
 		if err == nil {
-			err = encodeBytes(buf, pin.Right)
+			err = encoding.EncodeBytes(buf, pin.Right)
 		}
 	} else {
 		if err == nil {
-			err = encodeBytes(buf, pin.Left)
+			err = encoding.EncodeBytes(buf, pin.Left)
 		}
 		if err == nil {
-			err = encodeBytes(buf, childHash)
+			err = encoding.EncodeBytes(buf, childHash)
 		}
 	}
 	if err != nil {
@@ -122,9 +133,9 @@ func proofInnerNodeFromProto(pbInner *iavlproto.ProofInnerNode) (ProofInnerNode,
 //----------------------------------------
 
 type ProofLeafNode struct {
-	Key       cmn.HexBytes `json:"key"`
-	ValueHash cmn.HexBytes `json:"value"`
-	Version   int64        `json:"version"`
+	Key       hexbytes.HexBytes `json:"key"`
+	ValueHash hexbytes.HexBytes `json:"value"`
+	Version   int64             `json:"version"`
 }
 
 func (pln ProofLeafNode) String() string {
@@ -145,20 +156,23 @@ func (pln ProofLeafNode) stringIndented(indent string) string {
 
 func (pln ProofLeafNode) Hash() []byte {
 	hasher := sha256.New()
-	buf := new(bytes.Buffer)
 
-	err := encodeVarint(buf, 0)
+	buf := bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufPool.Put(buf)
+
+	err := encoding.EncodeVarint(buf, 0)
 	if err == nil {
-		err = encodeVarint(buf, 1)
+		err = encoding.EncodeVarint(buf, 1)
 	}
 	if err == nil {
-		err = encodeVarint(buf, pln.Version)
+		err = encoding.EncodeVarint(buf, pln.Version)
 	}
 	if err == nil {
-		err = encodeBytes(buf, pln.Key)
+		err = encoding.EncodeBytes(buf, pln.Key)
 	}
 	if err == nil {
-		err = encodeBytes(buf, pln.ValueHash)
+		err = encoding.EncodeBytes(buf, pln.ValueHash)
 	}
 	if err != nil {
 		panic(fmt.Sprintf("Failed to hash ProofLeafNode: %v", err))
